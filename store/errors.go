@@ -31,7 +31,8 @@ import (
 )
 
 var (
-	// ErrBadQuery is returned from Find when the query has special characters in strange places.
+	// ErrBadQuery is returned from Find when the query has special characters in
+	// strange places, or is unreasonably long.
 	ErrBadQuery = errors.New("bad query")
 
 	// ErrInvalidScope is returned from Find when an invalid scope is requested.

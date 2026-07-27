@@ -1077,6 +1077,10 @@ type Search struct {
 	Scope    string
 }
 
+// maxSearchTermLength is the longest search query we'll send to the store,
+// see the comment where it's used in Find.
+const maxSearchTermLength = 2000
+
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
 func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
@@ -1093,6 +1097,18 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	// "-" might also be special on the server, but it's also a
 	// valid part of a package name, so we let it pass
 	if strings.ContainsAny(searchTerm, `+=&|><!(){}[]^"~*?:\/`) {
+		return nil, ErrBadQuery
+	}
+
+	// the search server itself rejects unreasonably long queries with a raw
+	// HTTP 400 (no useful error body), which would otherwise surface to the
+	// user as a confusing "got unexpected HTTP status code 400", see
+	// LP: 1617508. reject client-side first with a clean error instead.
+	// maxSearchTermLength is comfortably below where the real search server
+	// actually starts rejecting queries (empirically between ~3500 and
+	// ~3800 characters), leaving a wide safety margin for any reasonable
+	// query.
+	if len(searchTerm) > maxSearchTermLength {
 		return nil, ErrBadQuery
 	}
 

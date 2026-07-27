@@ -2913,6 +2913,20 @@ func (s *storeTestSuite) TestFindFailures(c *C) {
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
+func (s *storeTestSuite) TestFindQueryTooLong(c *C) {
+	sto := store.New(&store.Config{StoreBaseURL: new(url.URL)}, nil)
+
+	longQuery := strings.Repeat("a", 2001)
+	_, err := sto.Find(s.ctx, &store.Search{Query: longQuery}, nil)
+	c.Check(err, Equals, store.ErrBadQuery)
+
+	okQuery := strings.Repeat("a", 2000)
+	_, err = sto.Find(s.ctx, &store.Search{Query: okQuery}, nil)
+	// this will fail for an unrelated reason (no real server behind
+	// StoreBaseURL), but must not be ErrBadQuery
+	c.Check(err, Not(Equals), store.ErrBadQuery)
+}
+
 func (s *storeTestSuite) TestFindInvalidScope(c *C) {
 	// bad query check is done early in Find(), so the test covers both search
 	// v1 & v2
