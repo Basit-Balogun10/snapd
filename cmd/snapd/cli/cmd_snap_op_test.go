@@ -3230,6 +3230,56 @@ func (s *SnapOpSuite) TestDisable(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestEnableMultipleSnaps(c *check.C) {
+	var actedOn []string
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/v2/snaps/"):
+			name := strings.TrimPrefix(r.URL.Path, "/v2/snaps/")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{"action": "enable"})
+			actedOn = append(actedOn, name)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, `{"type":"async","change":%q,"status-code":202}`, "chg-"+name)
+		case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v2/changes/"):
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Done", "ready": true}}`)
+		default:
+			c.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"enable", "foo", "bar"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(actedOn, check.DeepEquals, []string{"foo", "bar"})
+	c.Check(s.Stdout(), check.Equals, "foo enabled\nbar enabled\n")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestDisableMultipleSnaps(c *check.C) {
+	var actedOn []string
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/v2/snaps/"):
+			name := strings.TrimPrefix(r.URL.Path, "/v2/snaps/")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{"action": "disable"})
+			actedOn = append(actedOn, name)
+			w.WriteHeader(202)
+			fmt.Fprintf(w, `{"type":"async","change":%q,"status-code":202}`, "chg-"+name)
+		case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v2/changes/"):
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Done", "ready": true}}`)
+		default:
+			c.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"disable", "hello-world", "yq"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(actedOn, check.DeepEquals, []string{"hello-world", "yq"})
+	c.Check(s.Stdout(), check.Equals, "hello-world disabled\nyq disabled\n")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *SnapOpSuite) TestRemove(c *check.C) {
 	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {

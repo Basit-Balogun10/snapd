@@ -1448,26 +1448,28 @@ type cmdEnable struct {
 	waitMixin
 
 	Positional struct {
-		Snap installedSnapName `positional-arg-name:"<snap>"`
+		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdEnable) Execute([]string) error {
-	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{}
-	changeID, err := x.client.Enable(name, opts)
-	if err != nil {
-		return err
-	}
-
-	if _, err := x.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
+	for _, snap := range x.Positional.Snaps {
+		name := string(snap)
+		changeID, err := x.client.Enable(name, opts)
+		if err != nil {
+			return err
 		}
-		return err
-	}
 
-	fmt.Fprintf(Stdout, i18n.G("%s enabled\n"), name)
+		if _, err := x.wait(changeID); err != nil {
+			if err == noWait {
+				continue
+			}
+			return err
+		}
+
+		fmt.Fprintf(Stdout, i18n.G("%s enabled\n"), name)
+	}
 	return nil
 }
 
@@ -1475,26 +1477,28 @@ type cmdDisable struct {
 	waitMixin
 
 	Positional struct {
-		Snap installedSnapName `positional-arg-name:"<snap>"`
+		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdDisable) Execute([]string) error {
-	name := string(x.Positional.Snap)
 	opts := &client.SnapOptions{}
-	changeID, err := x.client.Disable(name, opts)
-	if err != nil {
-		return err
-	}
-
-	if _, err := x.wait(changeID); err != nil {
-		if err == noWait {
-			return nil
+	for _, snap := range x.Positional.Snaps {
+		name := string(snap)
+		changeID, err := x.client.Disable(name, opts)
+		if err != nil {
+			return err
 		}
-		return err
-	}
 
-	fmt.Fprintf(Stdout, i18n.G("%s disabled\n"), name)
+		if _, err := x.wait(changeID); err != nil {
+			if err == noWait {
+				continue
+			}
+			return err
+		}
+
+		fmt.Fprintf(Stdout, i18n.G("%s disabled\n"), name)
+	}
 	return nil
 }
 
