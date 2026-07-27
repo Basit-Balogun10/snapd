@@ -205,11 +205,16 @@ func (m *InterfaceManager) assessAppArmorPrompting() bool {
 }
 
 // snapdAppArmorServiceIsDisabledImpl returns true if the snapd.apparmor
-// service unit exists but is disabled
+// service unit exists but is disabled, or is enabled but not currently
+// active (e.g. it crashed) - either way AppArmor profiles won't be loaded,
+// see LP: 1806135.
 func snapdAppArmorServiceIsDisabledImpl() bool {
 	sysd := systemd.New(systemd.SystemMode, nil)
-	isEnabled, err := sysd.IsEnabled("snapd.apparmor")
-	return err == nil && !isEnabled
+	if isEnabled, err := sysd.IsEnabled("snapd.apparmor"); err == nil && !isEnabled {
+		return true
+	}
+	isActive, err := sysd.IsActive("snapd.apparmor")
+	return err == nil && !isActive
 }
 
 // regenerateAllSecurityProfiles will regenerate all security profiles. This

@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -870,4 +871,55 @@ func (s *helpersSuite) TestHasActiveConnection(c *C) {
 	active, err = ifacestate.HasActiveConnection(s.st, "browser-support")
 	c.Assert(err, IsNil)
 	c.Check(active, Equals, true)
+}
+
+type fakeSystemctlError struct {
+	msg string
+}
+
+func (e fakeSystemctlError) Msg() []byte   { return []byte(e.msg) }
+func (e fakeSystemctlError) ExitCode() int { return 1 }
+func (e fakeSystemctlError) Error() string { return e.msg }
+
+func (s *helpersSuite) TestSnapdAppArmorServiceIsDisabledImplDisabled(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		c.Assert(args, DeepEquals, []string{"is-enabled", "snapd.apparmor"})
+		return []byte("disabled\n"), fakeSystemctlError{msg: "disabled"}
+	})
+	defer restore()
+
+	c.Check(ifacestate.SnapdAppArmorServiceIsDisabledImpl(), Equals, true)
+}
+
+func (s *helpersSuite) TestSnapdAppArmorServiceIsDisabledImplEnabledAndActive(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		switch args[0] {
+		case "is-enabled":
+			return []byte("enabled\n"), nil
+		case "is-active":
+			return []byte("active\n"), nil
+		}
+		c.Fatalf("unexpected systemctl call: %v", args)
+		return nil, nil
+	})
+	defer restore()
+
+	c.Check(ifacestate.SnapdAppArmorServiceIsDisabledImpl(), Equals, false)
+}
+
+// Check that an enabled but currently failed unit still warns, LP: 1806135.
+func (s *helpersSuite) TestSnapdAppArmorServiceIsDisabledImplEnabledButFailed(c *C) {
+	restore := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		switch args[0] {
+		case "is-enabled":
+			return []byte("enabled\n"), nil
+		case "is-active":
+			return []byte("failed\n"), fakeSystemctlError{msg: "failed"}
+		}
+		c.Fatalf("unexpected systemctl call: %v", args)
+		return nil, nil
+	})
+	defer restore()
+
+	c.Check(ifacestate.SnapdAppArmorServiceIsDisabledImpl(), Equals, true)
 }
