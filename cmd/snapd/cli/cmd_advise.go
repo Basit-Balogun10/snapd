@@ -32,11 +32,14 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/advisor"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdAdviseSnap struct {
+	clientMixin
+
 	Positionals struct {
 		CommandOrPkg string
 	} `positional-args:"true"`
@@ -80,12 +83,29 @@ func init() {
 	cmd.hidden = true
 }
 
-func outputAdviseExactText(command string, result []advisor.Command) error {
+// suggesting "snap install" is wrong for a snap that's already installed but
+// disabled - it needs "snap enable" instead, see LP: 1854044
+func isInstalledButDisabled(cli *client.Client, snapName string) bool {
+	if cli == nil {
+		return false
+	}
+	snp, _, err := cli.Snap(snapName)
+	if err != nil {
+		return false
+	}
+	return snp.Status == client.StatusInstalled
+}
+
+func outputAdviseExactText(cli *client.Client, command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, "\n")
 	// TRANSLATORS: %q is a command name (like "gimp" or "loimpress")
 	fmt.Fprintf(Stdout, i18n.G("Command %q not found, but can be installed with:\n"), command)
 	fmt.Fprintf(Stdout, "\n")
 	for _, snap := range result {
+		if isInstalledButDisabled(cli, snap.Snap) {
+			fmt.Fprintf(Stdout, "sudo snap enable %s\n", snap.Snap)
+			continue
+		}
 		fmt.Fprintf(Stdout, "sudo snap install %s\n", snap.Snap)
 	}
 	fmt.Fprintf(Stdout, "\n")
@@ -277,7 +297,7 @@ func (x *cmdAdviseSnap) Execute(args []string) error {
 	}
 
 	if x.Command {
-		return adviseCommand(x.Positionals.CommandOrPkg, x.Format)
+		return adviseCommand(x.client, x.Positionals.CommandOrPkg, x.Format)
 	}
 
 	return advisePkg(x.Positionals.CommandOrPkg)
@@ -299,7 +319,7 @@ func advisePkg(pkgName string) error {
 	return nil
 }
 
-func adviseCommand(cmd string, format string) error {
+func adviseCommand(cli *client.Client, cmd string, format string) error {
 	// find exact matches
 	matches, err := advisor.FindCommand(cmd)
 	if err != nil {
@@ -310,7 +330,7 @@ func adviseCommand(cmd string, format string) error {
 		case "json":
 			return outputAdviseJSON(cmd, matches)
 		case "pretty":
-			return outputAdviseExactText(cmd, matches)
+			return outputAdviseExactText(cli, cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

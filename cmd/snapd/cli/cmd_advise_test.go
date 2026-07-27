@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -89,6 +90,44 @@ See 'snap info <snap name>' for additional versions.
 	c.Assert(s.Stderr(), Equals, "")
 }
 
+func (s *SnapSuite) TestAdviseCommandInstalledButDisabled(c *C) {
+	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
+	defer restore()
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/snaps/hello":
+			// installed, but disabled: Status is "installed", not "active"
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": map[string]any{"name": "hello", "status": "installed"},
+			})
+		case "/v2/snaps/hello-wcm":
+			w.WriteHeader(404)
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "error",
+				"result": map[string]any{"message": `snap "hello-wcm" not found`, "kind": "snap-not-found"},
+			})
+		default:
+			c.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--command", "hello"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, `
+Command "hello" not found, but can be installed with:
+
+sudo snap enable hello
+sudo snap install hello-wcm
+
+See 'snap info <snap name>' for additional versions.
+
+`)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
 func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
@@ -125,7 +164,7 @@ func (s *SnapSuite) TestAdviseCommandMisspellText(c *C) {
 	defer restore()
 
 	for _, misspelling := range []string{"helo", "0hello", "hell0", "hello0"} {
-		err := snap.AdviseCommand(misspelling, "pretty")
+		err := snap.AdviseCommand(nil, misspelling, "pretty")
 		c.Assert(err, IsNil)
 		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`
 Command "%s" not found, did you mean:
