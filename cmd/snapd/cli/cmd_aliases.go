@@ -20,6 +20,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -132,12 +133,31 @@ func (x *cmdAliases) Execute(args []string) error {
 			fmt.Fprintf(w, "%s\t%s\t%s\n", info.Command, info.Alias, notesStr)
 		}
 	} else {
-		if filterSnap != "" {
+		switch {
+		case filterSnap != "" && !snapIsInstalled(x.client, filterSnap):
+			// the aliases endpoint only reports on installed snaps, so an
+			// empty result doesn't mean no aliases exist, see LP: 2028055
+			fmt.Fprintf(Stderr, i18n.G("Snap %q is not installed.\n"), filterSnap)
+		case filterSnap != "":
 			fmt.Fprintf(Stderr, i18n.G("No aliases are currently defined for snap %q.\n"), filterSnap)
-		} else {
+		default:
 			fmt.Fprintln(Stderr, i18n.G("No aliases are currently defined."))
 		}
 		fmt.Fprintln(Stderr, i18n.G("\nUse 'snap help alias' to learn how to create aliases manually."))
 	}
 	return nil
+}
+
+func snapIsInstalled(cli *client.Client, snapName string) bool {
+	_, _, err := cli.Snap(snapName)
+	if err == nil {
+		return true
+	}
+	var clientErr *client.Error
+	if errors.As(err, &clientErr) && clientErr.Kind == client.ErrorKindSnapNotFound {
+		return false
+	}
+	// any other error (network, daemon down, ...): don't claim either way
+	// beyond what we already know, fall back to the previous behavior
+	return true
 }

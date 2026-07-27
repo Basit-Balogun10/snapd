@@ -128,25 +128,66 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 	c.Assert(s.Stderr(), Equals, "No aliases are currently defined.\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
 }
 
-func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
+func (s *SnapSuite) TestAliasesNoneFilterSnapInstalled(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := io.ReadAll(r.Body)
-		c.Check(err, IsNil)
-		c.Check(body, DeepEquals, []byte{})
-		EncodeResponseBody(c, w, map[string]any{
-			"type": "sync",
-			"result": map[string]map[string]client.AliasStatus{
-				"bar": {
-					"bar0": {Command: "foo", Status: "auto", Auto: "foo"},
-				}},
-		})
+		switch r.URL.Path {
+		case "/v2/aliases":
+			c.Check(r.Method, Equals, "GET")
+			body, err := io.ReadAll(r.Body)
+			c.Check(err, IsNil)
+			c.Check(body, DeepEquals, []byte{})
+			EncodeResponseBody(c, w, map[string]any{
+				"type": "sync",
+				"result": map[string]map[string]client.AliasStatus{
+					"bar": {
+						"bar0": {Command: "foo", Status: "auto", Auto: "foo"},
+					}},
+			})
+		case "/v2/snaps/not-bar":
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": map[string]any{"name": "not-bar", "status": "active"},
+			})
+		default:
+			c.Fatalf("unexpected request to %s", r.URL.Path)
+		}
 	})
 	_, err := Parser(Client()).ParseArgs([]string{"aliases", "not-bar"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "No aliases are currently defined for snap \"not-bar\".\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
+}
+
+func (s *SnapSuite) TestAliasesNoneFilterSnapNotInstalled(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/aliases":
+			c.Check(r.Method, Equals, "GET")
+			body, err := io.ReadAll(r.Body)
+			c.Check(err, IsNil)
+			c.Check(body, DeepEquals, []byte{})
+			EncodeResponseBody(c, w, map[string]any{
+				"type": "sync",
+				"result": map[string]map[string]client.AliasStatus{
+					"bar": {
+						"bar0": {Command: "foo", Status: "auto", Auto: "foo"},
+					}},
+			})
+		case "/v2/snaps/microceph":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "error",
+				"result": map[string]any{"message": `snap "microceph" not found`, "kind": "snap-not-found"},
+			})
+		default:
+			c.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+	})
+	_, err := Parser(Client()).ParseArgs([]string{"aliases", "microceph"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "Snap \"microceph\" is not installed.\n\nUse 'snap help alias' to learn how to create aliases manually.\n")
 }
 
 func (s *SnapSuite) TestAliasesSorting(c *C) {
