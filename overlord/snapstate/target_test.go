@@ -666,7 +666,7 @@ func (s *targetTestSuite) TestInvalidPathGoals(c *C) {
 					RealName: "some+snap",
 				},
 			},
-			err: `invalid instance name: invalid snap name: "some\+snap"`,
+			err: `invalid snap name: "some\+snap"`,
 		},
 		{
 			snap: snapstate.PathSnap{

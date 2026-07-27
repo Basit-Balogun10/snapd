@@ -794,7 +794,7 @@ func downloadTasks(
 	}
 
 	if err := snap.ValidateInstanceName(name); err != nil {
-		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
+		return nil, nil, err
 	}
 
 	sar, err := sendOneDownloadAction(ctx, st, StoreSnap{

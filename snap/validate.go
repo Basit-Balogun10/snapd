@@ -42,7 +42,15 @@ import (
 
 // ValidateInstanceName checks if a string can be used as a snap instance name.
 func ValidateInstanceName(instanceName string) error {
-	return naming.ValidateInstance(instanceName)
+	if err := naming.ValidateInstance(instanceName); err != nil {
+		// only frame this as an "instance name" problem if it actually
+		// uses store-name_instance-key syntax, see LP: 1875933
+		if strings.Contains(instanceName, "_") {
+			return fmt.Errorf("invalid instance name: %v", err)
+		}
+		return err
+	}
+	return nil
 }
 
 // ValidateName checks if a string can be used as a snap name.

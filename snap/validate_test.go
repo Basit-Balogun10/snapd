@@ -119,6 +119,19 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 		`invalid snap version "this-version-is-a-little-bit-older": cannot be longer than 32 characters \(got: 34\)`)
 }
 
+func (s *ValidateSuite) TestValidateInstanceName(c *C) {
+	// no underscore: plain snap name, not an instance-name problem, LP: 1875933
+	err := ValidateInstanceName("scummVM")
+	c.Assert(err, ErrorMatches, `invalid snap name: "scummVM"`)
+
+	// with underscore: genuinely instance-name syntax
+	err = ValidateInstanceName("foo_123_456")
+	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
+
+	// valid instance name
+	c.Assert(ValidateInstanceName("foo_bar"), IsNil)
+}
+
 func (s *ValidateSuite) TestValidateLicense(c *C) {
 	validLicenses := []string{
 		"GPL-3.0", "(GPL-3.0)", "GPL-3.0+", "GPL-3.0 AND GPL-2.0", "GPL-3.0 OR GPL-2.0", "MIT OR (GPL-3.0 AND GPL-2.0)", "MIT OR(GPL-3.0 AND GPL-2.0)",
@@ -1932,7 +1945,7 @@ version: 1.0
 	for _, s := range []string{"toolonginstance", "ABCD", "_", "inst@nce", "012345678901"} {
 		info.InstanceKey = s
 		err = Validate(info)
-		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid instance key: %q`, s))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`invalid instance name: invalid instance key: %q`, s))
 	}
 }
 

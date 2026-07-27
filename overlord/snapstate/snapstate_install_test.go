@@ -3991,13 +3991,13 @@ func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
 	defer s.state.Unlock()
 
 	_, err := snapstate.Install(context.Background(), s.state, "foo--invalid", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `invalid instance name: invalid snap name: "foo--invalid"`)
+	c.Assert(err, ErrorMatches, `invalid snap name: "foo--invalid"`)
 
 	_, err = snapstate.Install(context.Background(), s.state, "foo_123_456", nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 
 	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, nil, 0, nil)
-	c.Assert(err, ErrorMatches, `invalid instance name: invalid snap name: "foo--invalid"`)
+	c.Assert(err, ErrorMatches, `invalid snap name: "foo--invalid"`)
 
 	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
